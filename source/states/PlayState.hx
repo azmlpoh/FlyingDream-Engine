@@ -432,7 +432,7 @@ class PlayState extends MusicBeatState
 
 		// STAGE SCRIPTS
 		#if LUA_ALLOWED
-		startLuasNamed('stages/' + curStage + '.lua');
+//		startLuasNamed('stages/' + curStage + '.lua');
 		#end
 
 		#if HSCRIPT_ALLOWED
@@ -584,9 +584,9 @@ class PlayState extends MusicBeatState
 
 		#if LUA_ALLOWED
 		for (notetype in noteTypes)
-			startLuasNamed('custom_notetypes/' + notetype + '.lua');
+//			startLuasNamed('custom_notetypes/' + notetype + '.lua');
 		for (event in eventsPushed)
-			startLuasNamed('custom_events/' + event + '.lua');
+//			startLuasNamed('custom_events/' + event + '.lua');
 		#end
 
 		#if HSCRIPT_ALLOWED
@@ -609,10 +609,10 @@ class PlayState extends MusicBeatState
 		for (folder in Mods.directoriesWithFile(Paths.getSharedPath(), 'data/$songName/'))
 			for (file in Paths.readDirectory(folder))
 			{
-				#if LUA_ALLOWED
+/*				#if LUA_ALLOWED
 				if(file.toLowerCase().endsWith('.lua'))
 					new FunkinLua(folder + file);
-				#end
+				#end*/
 
 				#if HSCRIPT_ALLOWED
 				if(file.toLowerCase().endsWith('.hx'))
@@ -646,7 +646,7 @@ class PlayState extends MusicBeatState
 
 		resetRPC();
 
-		callOnScripts('onCreatePost');
+		callOnScripts('postCreate');
 
 		cacheCountdown();
 		cachePopUpScore();
@@ -1665,7 +1665,7 @@ class PlayState extends MusicBeatState
 			}
 		}
 		else FlxG.camera.followLerp = 0;
-		callOnScripts('onUpdate', [elapsed]);
+		callOnScripts('update', [elapsed]);
 
 		super.update(elapsed);
 
@@ -1851,7 +1851,7 @@ class PlayState extends MusicBeatState
 		setOnScripts('cameraX', camFollow.x);
 		setOnScripts('cameraY', camFollow.y);
 		setOnScripts('botPlay', cpuControlled);
-		callOnScripts('onUpdatePost', [elapsed]);
+		callOnScripts('postUpdate', [elapsed]);
 	}
 
 	// Health icon updaters
@@ -2373,7 +2373,7 @@ class PlayState extends MusicBeatState
 		checkForAchievement([weekNoMiss, 'ur_bad', 'ur_good', 'hype', 'two_keys', 'toastie', 'debugger']);
 		#end
 
-		var ret:Dynamic = callOnScripts('onEndSong', null, true);
+		var ret:Dynamic = callOnScripts('onSongEnd', null, true);
 		if(ret != LuaUtils.Function_Stop && !transitioning)
 		{
 			#if !switch
@@ -3146,7 +3146,7 @@ class PlayState extends MusicBeatState
 
 		lastStepHit = curStep;
 		setOnScripts('curStep', curStep);
-		callOnScripts('onStepHit');
+		callOnScripts('stepHit');
 	}
 
 	var lastBeatHit:Int = -1;
@@ -3173,7 +3173,7 @@ class PlayState extends MusicBeatState
 		lastBeatHit = curBeat;
 
 		setOnScripts('curBeat', curBeat);
-		callOnScripts('onBeatHit');
+		callOnScripts('beatHit');
 	}
 
 	public function characterBopper(beat:Int):Void
@@ -3281,9 +3281,9 @@ class PlayState extends MusicBeatState
 			}
 
 			hscriptArray.push(newScript);
-			if(newScript.exists('onCreate'))
+			if(newScript.exists('create'))
 			{
-				var callValue = newScript.call('onCreate');
+				var callValue = newScript.call('create');
 				if(!callValue.succeeded)
 				{
 					for (e in callValue.exceptions)
@@ -3292,7 +3292,7 @@ class PlayState extends MusicBeatState
 						{
 							var len:Int = e.message.indexOf('\n') + 1;
 							if(len <= 0) len = e.message.length;
-								addTextToDebug('ERROR ($file: onCreate) - ${e.message.substr(0, len)}', FlxColor.RED);
+								addTextToDebug('ERROR ($file: create) - ${e.message.substr(0, len)}', FlxColor.RED);
 						}
 					}
 
