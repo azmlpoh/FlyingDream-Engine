@@ -67,6 +67,7 @@ import mobile.TouchPad;
 import mobile.MobileInputID;
 #end
 
+@:allow(psychlua.LuaUtils)
 class HScript
 {
 	public var scriptName:String;
@@ -76,11 +77,9 @@ class HScript
 	public var parent:Dynamic;
 	public var variables:Map<String, Dynamic> = new Map();
 	public var callbacks:Map<String, Dynamic> = new Map();
-	public var staticImports:Map<String, Dynamic> = new Map();
-	public var sourcePaths:Array<String> = [];
 
-	#if HSCRIPT_ALLOWED
-	public var interp:tea.SScript;
+	#if SScript
+	public var interp:SScript;
 	#end
 
 	public function new(file:String, ?parentState:Dynamic)
@@ -93,102 +92,7 @@ class HScript
 		detectModFolder();
 		#end
 
-		loadSourcePaths();
 		loadAndExecute();
-	}
-
-	function loadSourcePaths()
-	{
-		var paths:Array<String> = [];
-
-		#if MODS_ALLOWED
-		if (modFolder != null)
-		{
-			paths.push(Paths.mods('source/'));
-			paths.push(Paths.mods(modFolder + '/source/'));
-		}
-		#end
-		paths.push(Paths.getSharedPath('source/'));
-
-		for (path in paths)
-		{
-			if (FileSystem.exists(path))
-			{
-				for (file in FileSystem.readDirectory(path))
-				{
-					if (file.endsWith('.hx') || file.endsWith('.hsc') || file.endsWith('.hscript'))
-					{
-						var fullPath = haxe.io.Path.join([path, file]);
-						var className = file.substr(0, file.length - 3);
-						if (file.endsWith('.hsc')) className = file.substr(0, file.length - 4);
-						if (file.endsWith('.hscript')) className = file.substr(0, file.length - 8);
-
-						try
-						{
-							var content = File.getContent(fullPath);
-							var tempInterp = new tea.SScript(content, false, false);
-							tempInterp.origin = fullPath;
-							setupImportGlobals(tempInterp);
-							tempInterp.execute();
-
-							var classObj:Dynamic = {};
-							for (key in tempInterp.variables.keys())
-							{
-								Reflect.setField(classObj, key, tempInterp.variables.get(key));
-							}
-
-							var staticFields = Type.getClassFields(tempInterp);
-							for (field in staticFields)
-							{
-								try
-								{
-									var value = Reflect.field(tempInterp, field);
-									Reflect.setField(classObj, field, value);
-								}
-								catch(e:Dynamic) {}
-							}
-
-							staticImports.set(className, classObj);
-							sourcePaths.push(fullPath);
-
-							trace('[HScript] Loaded source: $className from $fullPath');
-						}
-						catch(e:Dynamic)
-						{
-							trace('[HScript] Failed to load source $file: $e');
-						}
-					}
-				}
-			}
-		}
-	}
-
-	function setupImportGlobals(interp:tea.SScript)
-	{
-		interp.set('FlxG', FlxG);
-		interp.set('FlxSprite', FlxSprite);
-		interp.set('FlxCamera', FlxCamera);
-		interp.set('FlxText', FlxText);
-		interp.set('FlxTimer', FlxTimer);
-		interp.set('FlxTween', FlxTween);
-		interp.set('FlxEase', FlxEase);
-		interp.set('FlxColor', FlxColor);
-		interp.set('PlayState', PlayState);
-		interp.set('Paths', Paths);
-		interp.set('Conductor', Conductor);
-		interp.set('ClientPrefs', ClientPrefs);
-		interp.set('Song', Song);
-		interp.set('Highscore', Highscore);
-		interp.set('Note', Note);
-		interp.set('Character', Character);
-		interp.set('HealthIcon', HealthIcon);
-		interp.set('Alphabet', Alphabet);
-		interp.set('Reflect', Reflect);
-		interp.set('Type', Type);
-		interp.set('Std', Std);
-		interp.set('Json', Json);
-		interp.set('File', File);
-		interp.set('FileSystem', FileSystem);
 	}
 
 	function detectModFolder()
@@ -208,12 +112,11 @@ class HScript
 
 	function loadAndExecute()
 	{
-		#if HSCRIPT_ALLOWED
+		#if SScript
 		try
 		{
 			var content = File.getContent(scriptFile);
-			interp = new tea.SScript(content, false, false);
-			interp.origin = scriptFile;
+			interp = new SScript(content, false, false);
 
 			setupGlobals();
 
@@ -241,13 +144,13 @@ class HScript
 			showError('Load Error', Std.string(e));
 		}
 		#else
-		showError('HScript Not Available', 'HScript is not supported on this platform');
+		showError('SScript Not Available', 'SScript is not supported');
 		#end
 	}
 
 	function setupGlobals()
 	{
-		#if HSCRIPT_ALLOWED
+		#if SScript
 		interp.set('FlxG', FlxG);
 		interp.set('FlxMath', FlxMath);
 		interp.set('FlxSprite', FlxSprite);
@@ -324,71 +227,12 @@ class HScript
 		#end
 
 		registerFunctions();
-		registerPlayStateShortcuts();
-		#end
-	}
-
-	function registerPlayStateShortcuts()
-	{
-		#if HSCRIPT_ALLOWED
-		var ps = PlayState.instance;
-		if (ps == null) return;
-
-		var fields = Type.getInstanceFields(ps);
-		for (field in fields)
-		{
-			try
-			{
-				var value = Reflect.getProperty(ps, field);
-				if (!interp.variables.exists(field))
-				{
-					interp.set(field, value);
-				}
-			}
-			catch(e:Dynamic) {}
-		}
-
-		interp.set('health', ps.health);
-		interp.set('notes', ps.notes);
-		interp.set('unspawnNotes', ps.unspawnNotes);
-		interp.set('strumLineNotes', ps.strumLineNotes);
-		interp.set('playerStrums', ps.playerStrums);
-		interp.set('opponentStrums', ps.opponentStrums);
-		interp.set('defaultCamZoom', ps.defaultCamZoom);
-		interp.set('songScore', ps.songScore);
-		interp.set('songHits', ps.songHits);
-		interp.set('songMisses', ps.songMisses);
-		interp.set('combo', ps.combo);
-		interp.set('ratingPercent', ps.ratingPercent);
-		interp.set('ratingName', ps.ratingName);
-		interp.set('ratingFC', ps.ratingFC);
-		interp.set('cpuControlled', ps.cpuControlled);
-		interp.set('practiceMode', ps.practiceMode);
-		interp.set('camZooming', ps.camZooming);
-		interp.set('songLength', ps.songLength);
-		interp.set('songTime', ps.songTime);
-		interp.set('curBeat', ps.curBeat);
-		interp.set('curStep', ps.curStep);
-		interp.set('curSection', ps.curSection);
-		interp.set('curDecBeat', ps.curDecBeat);
-		interp.set('curDecStep', ps.curDecStep);
-		interp.set('crochet', Conductor.crochet);
-		interp.set('stepCrochet', Conductor.stepCrochet);
-		interp.set('bpm', Conductor.bpm);
-		interp.set('songPosition', Conductor.songPosition);
-		interp.set('downscroll', ClientPrefs.data.downScroll);
-		interp.set('middlescroll', ClientPrefs.data.middleScroll);
-		interp.set('botPlay', ps.cpuControlled);
-		interp.set('gfSpeed', ps.gfSpeed);
-		interp.set('songName', ps.songName);
-		interp.set('difficultyName', Difficulty.getString());
-		interp.set('version', MainMenuState.psychEngineVersion);
 		#end
 	}
 
 	function registerFunctions()
 	{
-		#if HSCRIPT_ALLOWED
+		#if SScript
 		interp.set('close', function() {
 			closed = true;
 			return true;
@@ -640,64 +484,20 @@ class HScript
 			return false;
 		});
 
-		interp.set('static', {
-			set: function(name:String, value:Dynamic) {
-				interp.set(name, value);
-				return value;
-			},
-			get: function(name:String) {
-				return interp.get(name);
-			}
-		});
-
-		interp.set('import', function(path:String) {
-			if (staticImports.exists(path))
-			{
-				var imported = staticImports.get(path);
-				for (key in Reflect.fields(imported))
-				{
-					interp.set(key, Reflect.field(imported, key));
-				}
-				return imported;
-			}
-			else
-			{
-				var parts = path.split('.');
-				var className = parts[parts.length - 1];
-				var clazz = Type.resolveClass(parts.join('.'));
-				if (clazz == null) clazz = Type.resolveClass('psychlua.' + className);
-				if (clazz == null) clazz = Type.resolveClass('states.' + className);
-				if (clazz == null) clazz = Type.resolveClass('backend.' + className);
-				if (clazz == null) clazz = Type.resolveClass('objects.' + className);
-				if (clazz != null)
-				{
-					var obj = {};
-					var staticFields = Type.getClassFields(clazz);
-					for (field in staticFields)
-					{
-						try
-						{
-							var value = Reflect.field(clazz, field);
-							Reflect.setField(obj, field, value);
-						}
-						catch(e:Dynamic) {}
-					}
-					interp.set(className, obj);
-					return obj;
-				}
-				else
-				{
-					trace('[HScript] Import failed: $path');
-					return null;
-				}
-			}
+		interp.set('addHaxeLibrary', function(libName:String, ?libPackage:String = '') {
+			var str:String = '';
+			if(libPackage.length > 0)
+				str = libPackage + '.';
+			var clazz = Type.resolveClass(str + libName);
+			if (clazz != null)
+				interp.set(libName, clazz);
 		});
 		#end
 	}
 
 	public function callFunction(name:String, ?args:Array<Dynamic>):Dynamic
 	{
-		#if HSCRIPT_ALLOWED
+		#if SScript
 		if (closed || interp == null) return null;
 		if (!interp.exists(name)) return null;
 
@@ -727,7 +527,7 @@ class HScript
 
 	public function setVariable(name:String, value:Dynamic)
 	{
-		#if HSCRIPT_ALLOWED
+		#if SScript
 		if (interp != null) interp.set(name, value);
 		variables.set(name, value);
 		#end
@@ -735,7 +535,7 @@ class HScript
 
 	public function getVariable(name:String):Dynamic
 	{
-		#if HSCRIPT_ALLOWED
+		#if SScript
 		if (interp != null && interp.exists(name))
 			return interp.get(name);
 		#end
@@ -753,7 +553,7 @@ class HScript
 	public function destroy()
 	{
 		closed = true;
-		#if HSCRIPT_ALLOWED
+		#if SScript
 		if (interp != null)
 		{
 			interp.destroy();
@@ -762,6 +562,5 @@ class HScript
 		#end
 		variables.clear();
 		callbacks.clear();
-		staticImports.clear();
 	}
 }
