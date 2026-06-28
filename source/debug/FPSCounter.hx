@@ -1,142 +1,79 @@
 package debug;
 
 import flixel.FlxG;
+import openfl.display.Sprite;
+import openfl.display.Bitmap;
+import openfl.display.BitmapData;
 import openfl.text.TextField;
 import openfl.text.TextFormat;
+import flixel.util.FlxStringUtil;
 import openfl.system.System as OpenFlSystem;
-import lime.system.System as LimeSystem;
 
-/**
-	The FPS class provides an easy-to-use monitor to display
-	the current frame rate of an OpenFL project
-**/
-#if cpp
-#if windows
-@:cppFileCode('#include <windows.h>')
-#elseif (ios || mac)
-@:cppFileCode('#include <mach-o/arch.h>')
-#else
-@:headerInclude('sys/utsname.h')
-#end
-#end
-class FPSCounter extends TextField
+class FPSCounter extends Sprite
 {
-	/**
-		The current frame rate, expressed using frames-per-second
-	**/
-	public var currentFPS(default, null):Int;
+	public var currentFPS(default, null):Int = 0;
+	public var totalMemory:Float = 0;
 
-	/**
-		The current memory usage (WARNING: this is NOT your total program memory usage, rather it shows the garbage collector memory)
-	**/
-	public var memoryMegas(get, never):Float;
+	var textField:TextField;
+	var times:Array<Float> = [];
+	var lastTime:Float = 0;
 
-	@:noCompletion private var times:Array<Float>;
-
-	public var os:String = '';
-
-	public function new(x:Float = 10, y:Float = 10, color:Int = 0x000000)
+	public function new(x:Float = 10, y:Float = 10)
 	{
 		super();
 
-		if (LimeSystem.platformName == LimeSystem.platformVersion || LimeSystem.platformVersion == null)
-			os = '\nOS: ${LimeSystem.platformName}' #if cpp + ' ${getArch() != 'Unknown' ? getArch() : ''}' #end;
-		else
-			os = '\nOS: ${LimeSystem.platformName}' #if cpp + ' ${getArch() != 'Unknown' ? getArch() : ''}' #end + ' - ${LimeSystem.platformVersion}';
+		var format = new TextFormat(Paths.font("vcr.ttf"), 14, 0xFFFFFFFF);
 
-		positionFPS(x, y);
+		textField = new TextField();
+		textField.selectable = false;
+		textField.mouseEnabled = false;
+		textField.defaultTextFormat = format;
+		textField.autoSize = LEFT;
+		textField.multiline = true;
+		textField.text = "FPS: 0\nMemory: 0MB ( 0MB peak )\nFlying Dream Engine - DEV(0.1.8)";
 
-		currentFPS = 0;
-		selectable = false;
-		mouseEnabled = false;
-		defaultTextFormat = new TextFormat("_sans", 14, color);
-		width = FlxG.width;
-		multiline = true;
-		text = "FPS: ";
+		addChild(textField);
 
-		times = [];
+		this.x = x;
+		this.y = y;
+
+		addEventListener(openfl.events.Event.ENTER_FRAME, onEnterFrame);
 	}
 
-	var deltaTimeout:Float = 0.0;
-
-	// Event Handlers
-	private override function __enterFrame(deltaTime:Float):Void
+	function onEnterFrame(e:openfl.events.Event):Void
 	{
-		// prevents the overlay from updating every frame, why would you need to anyways
-		if (deltaTimeout > 1000) {
-			deltaTimeout = 0.0;
-			return;
-		}
-
-		final now:Float = haxe.Timer.stamp() * 1000;
+		var now = haxe.Timer.stamp() * 1000;
 		times.push(now);
 		while (times[0] < now - 1000) times.shift();
 
-		currentFPS = times.length < FlxG.updateFramerate ? times.length : FlxG.updateFramerate;		
-		updateText();
-		deltaTimeout += deltaTime;
-	}
-
-	public dynamic function updateText():Void // so people can override it in hscript
-	{
-		text = 
-		'FPS: $currentFPS' + 
-		'\nMemory: ${flixel.util.FlxStringUtil.formatBytes(memoryMegas)}' +
-		os;
-
-		textColor = 0xFFFFFFFF;
-		if (currentFPS < FlxG.drawFramerate * 0.5)
-			textColor = 0xFFFF0000;
-	}
-
-	inline function get_memoryMegas():Float
-		return cast(OpenFlSystem.totalMemory, UInt);
-
-	public inline function positionFPS(X:Float, Y:Float, ?scale:Float = 1){
-		scaleX = scaleY = #if android (scale > 1 ? scale : 1) #else (scale < 1 ? scale : 1) #end;
-		x = FlxG.game.x + X;
-		y = FlxG.game.y + Y;
-	}
-
-	#if cpp
-	#if windows
-	@:functionCode('
-		SYSTEM_INFO osInfo;
-
-		GetSystemInfo(&osInfo);
-
-		switch(osInfo.wProcessorArchitecture)
-		{
-			case 9:
-				return ::String("x86_64");
-			case 5:
-				return ::String("ARM");
-			case 12:
-				return ::String("ARM64");
-			case 6:
-				return ::String("IA-64");
-			case 0:
-				return ::String("x86");
-			default:
-				return ::String("Unknown");
+		if (lastTime == 0) {
+			lastTime = now;
+			return;
 		}
-	')
-	#elseif (ios || mac)
-	@:functionCode('
-		const NXArchInfo *archInfo = NXGetLocalArchInfo();
-    	return ::String(archInfo == NULL ? "Unknown" : archInfo->name);
-	')
-	#else
-	@:functionCode('
-		struct utsname osInfo{};
-		uname(&osInfo);
-		return ::String(osInfo.machine);
-	')
-	#end
-	@:noCompletion
-	private function getArch():String
-	{
-		return "Unknown";
+
+		var delta = now - lastTime;
+		lastTime = now;
+
+		currentFPS = times.length;
+		updateText();
 	}
-	#end
+
+	function updateText():Void
+	{
+		var usedMemory:Float = OpenFlSystem.totalMemory;
+		if (usedMemory > totalMemory) totalMemory = usedMemory;
+
+		textField.text = 'FPS: $currentFPS\nMemory: ${FlxStringUtil.formatBytes(usedMemory)} ( ${FlxStringUtil.formatBytes(totalMemory)} paek)\nFlying Dream Engine - DEV(0.1.8)';
+
+		if (currentFPS < 30)
+			textField.textColor = 0xFFFF0000;
+		else
+			textField.textColor = 0xFFFFFFFF;
+	}
+
+	public function positionFPS(X:Float, Y:Float, ?scale:Float = 1)
+	{
+		this.x = FlxG.game.x + X;
+		this.y = FlxG.game.y + Y;
+	}
 }
