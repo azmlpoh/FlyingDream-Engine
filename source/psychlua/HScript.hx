@@ -57,6 +57,10 @@ import states.editors.MasterEditorMenu;
 import substates.PauseSubState;
 import substates.GameOverSubstate;
 
+#if SScript
+import tea.SScript;
+#end
+
 #if LUA_ALLOWED
 import psychlua.FunkinLua;
 import psychlua.LuaUtils;
