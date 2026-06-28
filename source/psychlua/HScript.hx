@@ -57,10 +57,6 @@ import states.editors.MasterEditorMenu;
 import substates.PauseSubState;
 import substates.GameOverSubstate;
 
-#if SScript
-import tea.SScript;
-#end
-
 #if LUA_ALLOWED
 import psychlua.FunkinLua;
 import psychlua.LuaUtils;
@@ -71,7 +67,10 @@ import mobile.TouchPad;
 import mobile.MobileInputID;
 #end
 
-@:allow(psychlua.LuaUtils)
+#if SScript
+import tea.SScript;
+#end
+
 class HScript
 {
 	public var scriptName:String;
@@ -83,7 +82,7 @@ class HScript
 	public var callbacks:Map<String, Dynamic> = new Map();
 
 	#if SScript
-	public var interp:SScript;
+	public var interp:tea.SScript;
 	#end
 
 	public function new(file:String, ?parentState:Dynamic)
@@ -120,7 +119,7 @@ class HScript
 		try
 		{
 			var content = File.getContent(scriptFile);
-			interp = new SScript(content, false, false);
+			interp = new tea.SScript(content, false, false);
 
 			setupGlobals();
 
@@ -495,6 +494,22 @@ class HScript
 			var clazz = Type.resolveClass(str + libName);
 			if (clazz != null)
 				interp.set(libName, clazz);
+		});
+
+		interp.set('import', function(path:String) {
+			var parts = path.split('.');
+			var className = parts[parts.length - 1];
+			var clazz = Type.resolveClass(path);
+			if (clazz == null) clazz = Type.resolveClass('psychlua.' + className);
+			if (clazz == null) clazz = Type.resolveClass('states.' + className);
+			if (clazz == null) clazz = Type.resolveClass('backend.' + className);
+			if (clazz == null) clazz = Type.resolveClass('objects.' + className);
+			if (clazz != null)
+			{
+				interp.set(className, clazz);
+				return clazz;
+			}
+			return null;
 		});
 		#end
 	}
