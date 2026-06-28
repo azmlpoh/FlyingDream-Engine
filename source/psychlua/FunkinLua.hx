@@ -593,6 +593,19 @@ class FunkinLua {
 			}
 		});
 
+		Lua_helper.add_callback(lua, "runLuaCode", function(codeToRun:String, ?varsToBring:Any = null, ?funcToRun:String = null, ?funcArgs:Array<Dynamic> = null):Dynamic
+		{
+			var result = LuaL.dostring(lua, codeToRun);
+			if (result != 0)
+			{
+				var error = Lua.tostring(lua, -1);
+				Lua.pop(lua, 1);
+				luaTrace('runLuaCode Error: $error', false, false, FlxColor.RED);
+				return null;
+			}
+			return null;
+		});
+
 		//Tween shit, but for strums
 		Lua_helper.add_callback(lua, "noteTweenX", function(tag:String, note:Int, value:Dynamic, duration:Float, ease:String) {
 			LuaUtils.cancelTween(tag);
